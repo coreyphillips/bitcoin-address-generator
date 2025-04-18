@@ -1,0 +1,20 @@
+[package]
+name = "bitcoin-address-generator"
+repository = "https://github.com/coreyphillips/bitcoin-address-generator"
+authors = ["Corey Phillips"]
+description = "A Rust library for Bitcoin key derivation and address generation"
+keywords = ["bitcoin", "bip39"]
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitcoin = "0.32.5"
+bip39 = { version = "2.0.0", features = ["rand"] }
+secp256k1 = "0.30.0"
+bip32 = "0.5.1"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.114"
+hex = "0.4.3"
+sha2 = "0.10.8"
+zeroize = "1.8.1"
+
