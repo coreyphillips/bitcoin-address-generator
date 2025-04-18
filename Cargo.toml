@@ -3,6 +3,7 @@ name = "bitcoin-address-generator"
 repository = "https://github.com/coreyphillips/bitcoin-address-generator"
 authors = ["Corey Phillips"]
 description = "A Rust library for Bitcoin key derivation and address generation"
+documentation = "https://docs.rs/bitcoin-address-generator"
 keywords = ["bitcoin", "bip39"]
 version = "0.1.0"
 edition = "2024"
