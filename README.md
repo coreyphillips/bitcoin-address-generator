@@ -27,7 +27,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bitcoin-key-derivation = "0.1.0"
+bitcoin-address-generator = "0.1.0"
 ```
 
 ## Usage Examples
@@ -35,7 +35,7 @@ bitcoin-key-derivation = "0.1.0"
 ### Generate a New Mnemonic Phrase
 
 ```rust
-use bitcoin_key_derivation::{generate_mnemonic, WordCount};
+use bitcoin_address_generator::{generate_mnemonic, WordCount};
 use bip39::Language;
 
 fn main() {
@@ -56,7 +56,7 @@ fn main() {
 ### Derive Different Address Types from a Mnemonic
 
 ```rust
-use bitcoin_key_derivation::derive_bitcoin_address;
+use bitcoin_address_generator::derive_bitcoin_address;
 use bitcoin::Network;
 
 fn main() {
@@ -111,7 +111,7 @@ fn main() {
 
 ### Derive Multiple Addresses at Once
 ```rust
-use bitcoin_key_derivation::derive_bitcoin_addresses;
+use bitcoin_address_generator::derive_bitcoin_addresses;
 use bitcoin::Network;
 
 fn main() {
@@ -170,7 +170,7 @@ fn main() {
 ### Calculate a Script Hash for an Address
 
 ```rust
-use bitcoin_key_derivation::calculate_script_hash;
+use bitcoin_address_generator::calculate_script_hash;
 use bitcoin::Network;
 
 fn main() {
@@ -188,7 +188,7 @@ fn main() {
 ### Derive a Private Key in WIF Format
 
 ```rust
-use bitcoin_key_derivation::derive_private_key;
+use bitcoin_address_generator::derive_private_key;
 use bitcoin::Network;
 
 fn main() {
@@ -208,7 +208,7 @@ fn main() {
 ### Using a BIP39 Passphrase (Optional Extra Security)
 
 ```rust
-use bitcoin_key_derivation::derive_bitcoin_address;
+use bitcoin_address_generator::derive_bitcoin_address;
 use bitcoin::Network;
 
 fn main() {
