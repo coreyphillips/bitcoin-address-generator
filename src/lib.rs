@@ -6,14 +6,14 @@
 //! - Script hash calculation
 //! - Private key generation
 
-use bitcoin::{Address, Network, key::{CompressedPublicKey}};
-use bip39::{Mnemonic, Language};
-use bip32::{XPrv, DerivationPath};
-use bitcoin::secp256k1::{Secp256k1, PublicKey, XOnlyPublicKey};
-use serde::{Serialize, Deserialize};
-use std::{str::FromStr, fmt};
-use std::error::Error as StdError;
+use bip32::{DerivationPath, XPrv};
+use bip39::{Language, Mnemonic};
+use bitcoin::secp256k1::{PublicKey, Secp256k1, XOnlyPublicKey};
+use bitcoin::{Address, Network, key::CompressedPublicKey};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::error::Error as StdError;
+use std::{fmt, str::FromStr};
 use zeroize::Zeroize;
 
 const DEFAULT_NETWORK: Network = Network::Bitcoin;
@@ -81,10 +81,16 @@ pub enum DerivationError {
 impl fmt::Display for DerivationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DerivationError::InvalidDerivationPath(msg) => write!(f, "Invalid derivation path: {}", msg),
+            DerivationError::InvalidDerivationPath(msg) => {
+                write!(f, "Invalid derivation path: {}", msg)
+            }
             DerivationError::InvalidNetworkType(msg) => write!(f, "Invalid network type: {}", msg),
-            DerivationError::InvalidPurposeField(msg) => write!(f, "Invalid purpose field: {}", msg),
-            DerivationError::InvalidXOnlyPubkey(msg) => write!(f, "Invalid X-only public key: {}", msg),
+            DerivationError::InvalidPurposeField(msg) => {
+                write!(f, "Invalid purpose field: {}", msg)
+            }
+            DerivationError::InvalidXOnlyPubkey(msg) => {
+                write!(f, "Invalid X-only public key: {}", msg)
+            }
             DerivationError::Bip39Error(e) => write!(f, "BIP39 error: {}", e),
             DerivationError::Bip32Error(e) => write!(f, "BIP32 error: {}", e),
             DerivationError::BitcoinError(e) => write!(f, "Bitcoin error: {}", e),
@@ -243,7 +249,10 @@ impl Drop for SecureWifKey {
 ///
 /// # Errors
 /// * `DerivationError::Bip39Error` - If mnemonic generation fails
-pub fn generate_mnemonic(word_count: Option<WordCount>, language: Option<Language>) -> Result<String, DerivationError> {
+pub fn generate_mnemonic(
+    word_count: Option<WordCount>,
+    language: Option<Language>,
+) -> Result<String, DerivationError> {
     let word_count = word_count.unwrap_or(WordCount::Words12);
     let lang = language.unwrap_or(Language::English);
 
@@ -267,7 +276,10 @@ pub fn generate_mnemonic(word_count: Option<WordCount>, language: Option<Languag
 fn validate_purpose_field(purpose: &str) -> Result<(), DerivationError> {
     match purpose {
         "44'" | "49'" | "84'" | "86'" => Ok(()),
-        _ => Err(DerivationError::InvalidPurposeField(format!("Unsupported purpose field: {}. Expected one of: 44', 49', 84', 86'", purpose)))
+        _ => Err(DerivationError::InvalidPurposeField(format!(
+            "Unsupported purpose field: {}. Expected one of: 44', 49', 84', 86'",
+            purpose
+        ))),
     }
 }
 
@@ -305,14 +317,16 @@ pub fn derive_bitcoin_address(
     let path_parts: Vec<&str> = derivation_path_str.split('/').collect();
     if path_parts.len() != 6 || path_parts[0] != "m" {
         return Err(DerivationError::InvalidDerivationPath(
-            "Invalid derivation path format. Expected format example: m/84'/0'/0'/0/0".to_string()
+            "Invalid derivation path format. Expected format example: m/84'/0'/0'/0/0".to_string(),
         ));
     }
 
     // Extract and validate the purpose field
-    let purpose = path_parts.get(1).ok_or_else(||
-        DerivationError::InvalidDerivationPath("Missing purpose field in derivation path".to_string())
-    )?;
+    let purpose = path_parts.get(1).ok_or_else(|| {
+        DerivationError::InvalidDerivationPath(
+            "Missing purpose field in derivation path".to_string(),
+        )
+    })?;
 
     // Validate the purpose field
     validate_purpose_field(purpose)?;
@@ -322,23 +336,26 @@ pub fn derive_bitcoin_address(
     match network {
         Network::Bitcoin => {
             if second_number != 0 {
-                return Err(DerivationError::InvalidDerivationPath(
-                    format!("Invalid Coin number in the derivation path for {}. Expected 0.", network)
-                ));
+                return Err(DerivationError::InvalidDerivationPath(format!(
+                    "Invalid Coin number in the derivation path for {}. Expected 0.",
+                    network
+                )));
             }
         }
         Network::Testnet | Network::Regtest | Network::Signet => {
             if second_number != 1 {
-                return Err(DerivationError::InvalidDerivationPath(
-                    format!("Invalid Coin number in the derivation path for {}. Expected 1.", network)
-                ));
+                return Err(DerivationError::InvalidDerivationPath(format!(
+                    "Invalid Coin number in the derivation path for {}. Expected 1.",
+                    network
+                )));
             }
         }
         // Handle other network types that might be added in the future
         _ => {
-            return Err(DerivationError::InvalidNetworkType(
-                format!("Unsupported network type: {}", network)
-            ));
+            return Err(DerivationError::InvalidNetworkType(format!(
+                "Unsupported network type: {}",
+                network
+            )));
         }
     }
 
@@ -372,7 +389,8 @@ pub fn derive_bitcoin_address(
 
     // Derive the secret key
     let secp = Secp256k1::new();
-    let secret_key = match bitcoin::secp256k1::SecretKey::from_slice(&xprv.private_key().to_bytes()) {
+    let secret_key = match bitcoin::secp256k1::SecretKey::from_slice(&xprv.private_key().to_bytes())
+    {
         Ok(key) => SecurePrivateKey::new(key),
         Err(e) => {
             seed_bytes.zeroize();
@@ -389,7 +407,12 @@ pub fn derive_bitcoin_address(
     // Convert to bitcoin CompressedPublicKey
     let compressed_public_key = match CompressedPublicKey::from_slice(&public_key.serialize()) {
         Ok(key) => key,
-        Err(e) => return Err(DerivationError::BitcoinError(format!("Failed to create compressed public key: {}", e))),
+        Err(e) => {
+            return Err(DerivationError::BitcoinError(format!(
+                "Failed to create compressed public key: {}",
+                e
+            )));
+        }
     };
 
     // Determine the address type based on the derivation path
@@ -401,12 +424,22 @@ pub fn derive_bitcoin_address(
             // For P2TR, we need to convert to an XOnlyPublicKey
             let x_only_pubkey = match XOnlyPublicKey::from_slice(&public_key.serialize()[1..]) {
                 Ok(key) => key,
-                Err(e) => return Err(DerivationError::InvalidXOnlyPubkey(format!("Failed to create XOnlyPublicKey: {}", e))),
+                Err(e) => {
+                    return Err(DerivationError::InvalidXOnlyPubkey(format!(
+                        "Failed to create XOnlyPublicKey: {}",
+                        e
+                    )));
+                }
             };
             let merkle_root = None; // Set the merkle_root to None for a single public key
             Address::p2tr(&secp, x_only_pubkey, merkle_root, network)
         }
-        _ => return Err(DerivationError::InvalidPurposeField(format!("Unsupported purpose field: {}", purpose))),
+        _ => {
+            return Err(DerivationError::InvalidPurposeField(format!(
+                "Unsupported purpose field: {}",
+                purpose
+            )));
+        }
     };
 
     let address_string = address.to_string();
@@ -478,9 +511,11 @@ pub fn derive_bitcoin_addresses(
     };
 
     // Extract and validate the purpose field
-    let purpose = path_parts.get(1).ok_or_else(||
-        DerivationError::InvalidDerivationPath("Missing purpose field in derivation path".to_string())
-    )?;
+    let purpose = path_parts.get(1).ok_or_else(|| {
+        DerivationError::InvalidDerivationPath(
+            "Missing purpose field in derivation path".to_string(),
+        )
+    })?;
 
     // Validate the purpose field
     validate_purpose_field(purpose)?;
@@ -490,23 +525,26 @@ pub fn derive_bitcoin_addresses(
     match network {
         Network::Bitcoin => {
             if second_number != 0 {
-                return Err(DerivationError::InvalidDerivationPath(
-                    format!("Invalid Coin number in the derivation path for {}. Expected 0.", network)
-                ));
+                return Err(DerivationError::InvalidDerivationPath(format!(
+                    "Invalid Coin number in the derivation path for {}. Expected 0.",
+                    network
+                )));
             }
         }
         Network::Testnet | Network::Regtest | Network::Signet => {
             if second_number != 1 {
-                return Err(DerivationError::InvalidDerivationPath(
-                    format!("Invalid Coin number in the derivation path for {}. Expected 1.", network)
-                ));
+                return Err(DerivationError::InvalidDerivationPath(format!(
+                    "Invalid Coin number in the derivation path for {}. Expected 1.",
+                    network
+                )));
             }
         }
         // Handle other network types that might be added in the future
         _ => {
-            return Err(DerivationError::InvalidNetworkType(
-                format!("Unsupported network type: {}", network)
-            ));
+            return Err(DerivationError::InvalidNetworkType(format!(
+                "Unsupported network type: {}",
+                network
+            )));
         }
     }
 
@@ -519,7 +557,12 @@ pub fn derive_bitcoin_addresses(
         let full_path = format!("{}/{}/{}", base_path, change_component, i);
 
         // Use the existing derive_bitcoin_address function to derive the address
-        match derive_bitcoin_address(mnemonic_phrase, Some(&full_path), Some(network), Some(bip39_passphrase)) {
+        match derive_bitcoin_address(
+            mnemonic_phrase,
+            Some(&full_path),
+            Some(network),
+            Some(bip39_passphrase),
+        ) {
             Ok(address) => addresses.push(address),
             Err(e) => return Err(e),
         }
@@ -542,18 +585,31 @@ pub fn derive_bitcoin_addresses(
 ///
 /// # Errors
 /// * `DerivationError::BitcoinError` - If the address cannot be parsed or network validation fails
-pub fn calculate_script_hash(address: &str, network: Option<Network>) -> Result<String, DerivationError> {
+pub fn calculate_script_hash(
+    address: &str,
+    network: Option<Network>,
+) -> Result<String, DerivationError> {
     let network = network.unwrap_or(DEFAULT_NETWORK);
 
     // Parse the address
     let parsed_addr = match Address::from_str(address) {
         Ok(addr) => addr,
-        Err(e) => return Err(DerivationError::BitcoinError(format!("Failed to parse address: {}", e))),
+        Err(e) => {
+            return Err(DerivationError::BitcoinError(format!(
+                "Failed to parse address: {}",
+                e
+            )));
+        }
     };
 
     let addr = match parsed_addr.require_network(network) {
         Ok(address) => address,
-        Err(e) => return Err(DerivationError::BitcoinError(format!("Network mismatch: {}", e))),
+        Err(e) => {
+            return Err(DerivationError::BitcoinError(format!(
+                "Network mismatch: {}",
+                e
+            )));
+        }
     };
 
     // Get the script from the address
@@ -627,7 +683,8 @@ pub fn derive_private_key(
     };
 
     // Derive the secret key
-    let secret_key = match bitcoin::secp256k1::SecretKey::from_slice(&xprv.private_key().to_bytes()) {
+    let secret_key = match bitcoin::secp256k1::SecretKey::from_slice(&xprv.private_key().to_bytes())
+    {
         Ok(key) => key,
         Err(e) => {
             seed_bytes.zeroize();
@@ -653,12 +710,16 @@ pub fn derive_private_key(
 
 #[cfg(test)]
 mod tests {
-    use std::option::Option;
     use super::*;
+    use std::option::Option;
 
     #[test]
     fn test_generate_mnemonic() {
-        let mnemonic: String = generate_mnemonic(Option::from(WordCount::Words12), Option::from(Language::English)).unwrap();
+        let mnemonic: String = generate_mnemonic(
+            Option::from(WordCount::Words12),
+            Option::from(Language::English),
+        )
+        .unwrap();
         println!("Generated mnemonic: {}", mnemonic);
         assert_eq!(mnemonic.split_whitespace().count(), 12);
     }
@@ -668,7 +729,13 @@ mod tests {
         // Test with a known mnemonic and expected address for legacy P2PKH (44' path)
         let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         let path = "m/44'/0'/0'/0/0";
-        let address = derive_bitcoin_address(mnemonic, Option::from(path), Option::from(Network::Bitcoin), None).unwrap();
+        let address = derive_bitcoin_address(
+            mnemonic,
+            Option::from(path),
+            Option::from(Network::Bitcoin),
+            None,
+        )
+        .unwrap();
         println!("P2PKH address: {}", address.address);
         println!("P2PKH pubkey: {}", address.public_key);
         assert_eq!(address.address, "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA");
@@ -680,7 +747,13 @@ mod tests {
         // Test with a known mnemonic and expected address for P2SH-wrapped SegWit (49' path)
         let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         let path = "m/49'/0'/0'/0/0";
-        let address = derive_bitcoin_address(mnemonic, Option::from(path), Option::from(Network::Bitcoin), None).unwrap();
+        let address = derive_bitcoin_address(
+            mnemonic,
+            Option::from(path),
+            Option::from(Network::Bitcoin),
+            None,
+        )
+        .unwrap();
         println!("P2SH-WPKH address: {}", address.address);
         println!("P2SH-WPKH pubkey: {}", address.public_key);
         assert_eq!(address.address, "37VucYSaXLCAsxYyAPfbSi9eh4iEcbShgf");
@@ -692,10 +765,19 @@ mod tests {
         // Test with a known mnemonic and expected address for native SegWit (84' path)
         let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         let path = "m/84'/0'/0'/0/0";
-        let address = derive_bitcoin_address(mnemonic, Option::from(path), Option::from(Network::Bitcoin), None).unwrap();
+        let address = derive_bitcoin_address(
+            mnemonic,
+            Option::from(path),
+            Option::from(Network::Bitcoin),
+            None,
+        )
+        .unwrap();
         println!("P2WPKH address: {}", address.address);
         println!("P2WPKH pubkey: {}", address.public_key);
-        assert_eq!(address.address, "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
+        assert_eq!(
+            address.address,
+            "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"
+        );
         assert_eq!(address.path, path);
     }
 
@@ -704,7 +786,13 @@ mod tests {
         // Test with a known mnemonic and expected address for Taproot (86' path)
         let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         let path = "m/86'/0'/0'/0/0";
-        let address = derive_bitcoin_address(mnemonic, Option::from(path), Option::from(Network::Bitcoin), None).unwrap();
+        let address = derive_bitcoin_address(
+            mnemonic,
+            Option::from(path),
+            Option::from(Network::Bitcoin),
+            None,
+        )
+        .unwrap();
         println!("P2TR address: {}", address.address);
         println!("P2TR pubkey: {}", address.public_key);
         // We're using a flexible assertion here since the exact address might vary by implementation
@@ -715,12 +803,23 @@ mod tests {
     #[test]
     fn test_calculate_script_hash() {
         // Test script hash generation for P2PKH address
-        let script_hash = calculate_script_hash("1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA", Option::from(Network::Bitcoin)).unwrap();
+        let script_hash = calculate_script_hash(
+            "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA",
+            Option::from(Network::Bitcoin),
+        )
+        .unwrap();
         println!("P2PKH script hash: {}", script_hash);
-        assert_eq!(script_hash, "1e8750b8a4c0912d8b84f7eb53472cbdcb57f9e0cde263b2e51ecbe30853cd68");
+        assert_eq!(
+            script_hash,
+            "1e8750b8a4c0912d8b84f7eb53472cbdcb57f9e0cde263b2e51ecbe30853cd68"
+        );
 
         // Test script hash generation for P2WPKH address
-        let script_hash = calculate_script_hash("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu", Option::from(Network::Bitcoin)).unwrap();
+        let script_hash = calculate_script_hash(
+            "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",
+            Option::from(Network::Bitcoin),
+        )
+        .unwrap();
         println!("P2WPKH script hash: {}", script_hash);
         // Let's check the actual value
         assert_eq!(script_hash.len(), 64); // It should be a 32-byte hash (64 hex chars)
@@ -731,8 +830,17 @@ mod tests {
         // Test private key generation
         let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         let path = "m/84'/0'/0'/0/0";
-        let private_key = derive_private_key(mnemonic, Option::from(path), Option::from(Network::Bitcoin), None).unwrap();
-        assert_eq!(private_key, "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d");
+        let private_key = derive_private_key(
+            mnemonic,
+            Option::from(path),
+            Option::from(Network::Bitcoin),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            private_key,
+            "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d"
+        );
     }
 
     #[test]
@@ -740,7 +848,16 @@ mod tests {
         // Test deriving multiple addresses with base path
         let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         let base_path = "m/84'/0'/0'";
-        let result = derive_bitcoin_addresses(mnemonic, Option::from(base_path), Option::from(Network::Bitcoin), None, None, None, Option::from(3)).unwrap();
+        let result = derive_bitcoin_addresses(
+            mnemonic,
+            Option::from(base_path),
+            Option::from(Network::Bitcoin),
+            None,
+            None,
+            None,
+            Option::from(3),
+        )
+        .unwrap();
 
         // Check that we got the right number of addresses
         assert_eq!(result.addresses.len(), 3);
@@ -751,18 +868,39 @@ mod tests {
         assert_eq!(result.addresses[2].path, "m/84'/0'/0'/0/2");
 
         // Check the first address is correct
-        assert_eq!(result.addresses[0].address, "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
+        assert_eq!(
+            result.addresses[0].address,
+            "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"
+        );
 
         // Test with full path - should extract and use only the base path
-        let full_path = "m/84'/0'/0'/0/5";  // Has index 5, but we should use our start_index instead
-        let full_path_result = derive_bitcoin_addresses(mnemonic, Option::from(full_path), Option::from(Network::Bitcoin), None, None, Option::from(10), Option::from(2)).unwrap();
+        let full_path = "m/84'/0'/0'/0/5"; // Has index 5, but we should use our start_index instead
+        let full_path_result = derive_bitcoin_addresses(
+            mnemonic,
+            Option::from(full_path),
+            Option::from(Network::Bitcoin),
+            None,
+            None,
+            Option::from(10),
+            Option::from(2),
+        )
+        .unwrap();
 
         // We should ignore the /0/5 part of the full path and use our parameters
         assert_eq!(full_path_result.addresses[0].path, "m/84'/0'/0'/0/10");
         assert_eq!(full_path_result.addresses[1].path, "m/84'/0'/0'/0/11");
 
         // Test deriving change addresses with full path
-        let full_path_change = derive_bitcoin_addresses(mnemonic, Option::from(full_path), Option::from(Network::Bitcoin), None, Option::from(true), None, Option::from(2)).unwrap();
+        let full_path_change = derive_bitcoin_addresses(
+            mnemonic,
+            Option::from(full_path),
+            Option::from(Network::Bitcoin),
+            None,
+            Option::from(true),
+            None,
+            Option::from(2),
+        )
+        .unwrap();
 
         // Should use the is_change parameter regardless of what was in the path
         assert_eq!(full_path_change.addresses[0].path, "m/84'/0'/0'/1/0");
@@ -770,7 +908,16 @@ mod tests {
 
         // Test with a full change path - should still extract only the base path
         let full_change_path = "m/84'/0'/0'/1/0";
-        let change_override_result = derive_bitcoin_addresses(mnemonic, Option::from(full_change_path), Option::from(Network::Bitcoin), None, Option::from(false), None, Option::from(2)).unwrap();
+        let change_override_result = derive_bitcoin_addresses(
+            mnemonic,
+            Option::from(full_change_path),
+            Option::from(Network::Bitcoin),
+            None,
+            Option::from(false),
+            None,
+            Option::from(2),
+        )
+        .unwrap();
 
         // Should use the is_change parameter (false) regardless of what was in the path
         assert_eq!(change_override_result.addresses[0].path, "m/84'/0'/0'/0/0");
