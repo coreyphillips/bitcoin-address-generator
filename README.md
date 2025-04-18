@@ -2,8 +2,8 @@
 
 A Rust library for Bitcoin key derivation and address generation.
 
-[![Crates.io](https://img.shields.io/crates/v/bitcoin-key-derivation.svg)](https://crates.io/crates/bitcoin-key-derivation)
-[![Documentation](https://docs.rs/bitcoin-key-derivation/badge.svg)](https://docs.rs/bitcoin-key-derivation)
+[![Crates.io](https://img.shields.io/crates/v/bitcoin-key-derivation.svg)](https://crates.io/crates/bitcoin-address-generator)
+[![Documentation](https://docs.rs/bitcoin-key-derivation/badge.svg)](https://docs.rs/bitcoin-address-generator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
