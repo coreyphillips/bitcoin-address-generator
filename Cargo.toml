@@ -5,7 +5,7 @@ authors = ["Corey Phillips"]
 description = "A Rust library for Bitcoin key derivation and address generation"
 documentation = "https://docs.rs/bitcoin-address-generator"
 keywords = ["bitcoin", "bip39"]
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 
