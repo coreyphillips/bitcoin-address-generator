@@ -708,6 +708,201 @@ pub fn derive_private_key(
     Ok(private_key_string)
 }
 
+// ============================================================================
+// BIP39 Mnemonic Utilities
+// ============================================================================
+
+/// Validates a BIP39 mnemonic phrase.
+///
+/// # Arguments
+/// * `mnemonic_phrase` - The mnemonic phrase to validate (space-separated words)
+///
+/// # Returns
+/// * `Result<(), DerivationError>` - Ok if valid, error otherwise
+///
+/// # Example
+/// ```
+/// use bitcoin_address_generator::validate_mnemonic;
+///
+/// let valid = validate_mnemonic("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+/// assert!(valid.is_ok());
+///
+/// let invalid = validate_mnemonic("invalid word sequence");
+/// assert!(invalid.is_err());
+/// ```
+pub fn validate_mnemonic(mnemonic_phrase: &str) -> Result<(), DerivationError> {
+    Mnemonic::from_str(mnemonic_phrase)
+        .map(|_| ())
+        .map_err(|e| DerivationError::Bip39Error(e))
+}
+
+/// Checks if a word is a valid BIP39 word for the specified language.
+///
+/// # Arguments
+/// * `word` - The word to check
+/// * `language` - Optional language (default: English)
+///
+/// # Returns
+/// * `bool` - true if the word is valid, false otherwise
+///
+/// # Example
+/// ```
+/// use bitcoin_address_generator::is_valid_bip39_word;
+///
+/// assert!(is_valid_bip39_word("abandon", None));
+/// assert!(!is_valid_bip39_word("notaword", None));
+/// ```
+pub fn is_valid_bip39_word(word: &str, language: Option<Language>) -> bool {
+    let lang = language.unwrap_or(Language::English);
+    lang.word_list()
+        .iter()
+        .any(|w| w.to_lowercase() == word.to_lowercase())
+}
+
+/// Gets word suggestions for partial input (autocomplete).
+///
+/// # Arguments
+/// * `partial_word` - The partial word to get suggestions for
+/// * `limit` - Maximum number of suggestions to return
+/// * `language` - Optional language (default: English)
+///
+/// # Returns
+/// * `Vec<String>` - A sorted list of suggested words
+///
+/// # Example
+/// ```
+/// use bitcoin_address_generator::get_bip39_suggestions;
+///
+/// let suggestions = get_bip39_suggestions("ab", 5, None);
+/// assert!(suggestions.contains(&"abandon".to_string()));
+/// assert!(suggestions.len() <= 5);
+/// ```
+pub fn get_bip39_suggestions(
+    partial_word: &str,
+    limit: usize,
+    language: Option<Language>,
+) -> Vec<String> {
+    let lang = language.unwrap_or(Language::English);
+    let lowercased = partial_word.to_lowercase();
+
+    let mut suggestions: Vec<String> = lang
+        .word_list()
+        .iter()
+        .filter(|word| word.starts_with(&lowercased))
+        .map(|w| w.to_string())
+        .collect();
+
+    suggestions.sort();
+    suggestions.truncate(limit);
+    suggestions
+}
+
+/// Gets the full BIP39 wordlist for the specified language.
+///
+/// # Arguments
+/// * `language` - Optional language (default: English)
+///
+/// # Returns
+/// * `Vec<String>` - The complete wordlist
+///
+/// # Example
+/// ```
+/// use bitcoin_address_generator::get_bip39_wordlist;
+///
+/// let wordlist = get_bip39_wordlist(None);
+/// assert_eq!(wordlist.len(), 2048);
+/// ```
+pub fn get_bip39_wordlist(language: Option<Language>) -> Vec<String> {
+    let lang = language.unwrap_or(Language::English);
+    lang.word_list()
+        .iter()
+        .map(|w| w.to_string())
+        .collect()
+}
+
+/// Converts a mnemonic phrase to entropy bytes.
+///
+/// # Arguments
+/// * `mnemonic_phrase` - The mnemonic phrase to convert
+///
+/// # Returns
+/// * `Result<Vec<u8>, DerivationError>` - The entropy bytes or an error
+///
+/// # Security
+/// **WARNING**: The returned entropy is sensitive cryptographic material.
+/// Callers must ensure the returned `Vec<u8>` is properly zeroized when no longer needed.
+/// Consider using `zeroize::Zeroize` trait to securely clear the data from memory.
+///
+/// # Example
+/// ```
+/// use bitcoin_address_generator::mnemonic_to_entropy;
+///
+/// let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+/// let entropy = mnemonic_to_entropy(mnemonic).unwrap();
+/// assert_eq!(entropy.len(), 16); // 128 bits for 12-word mnemonic
+/// ```
+pub fn mnemonic_to_entropy(mnemonic_phrase: &str) -> Result<Vec<u8>, DerivationError> {
+    let mnemonic = Mnemonic::from_str(mnemonic_phrase)?;
+    Ok(mnemonic.to_entropy().to_vec())
+}
+
+/// Converts entropy bytes to a mnemonic phrase.
+///
+/// # Arguments
+/// * `entropy` - The entropy bytes to convert
+/// * `language` - Optional language (default: English)
+///
+/// # Returns
+/// * `Result<String, DerivationError>` - The mnemonic phrase or an error
+///
+/// # Example
+/// ```
+/// use bitcoin_address_generator::entropy_to_mnemonic;
+///
+/// let entropy = vec![0u8; 16]; // 128 bits
+/// let mnemonic = entropy_to_mnemonic(&entropy, None).unwrap();
+/// assert_eq!(mnemonic.split_whitespace().count(), 12);
+/// ```
+pub fn entropy_to_mnemonic(
+    entropy: &[u8],
+    language: Option<Language>,
+) -> Result<String, DerivationError> {
+    let lang = language.unwrap_or(Language::English);
+    let mnemonic = Mnemonic::from_entropy_in(lang, entropy)?;
+    Ok(mnemonic.to_string())
+}
+
+/// Converts a mnemonic phrase to a seed with optional passphrase.
+///
+/// # Arguments
+/// * `mnemonic_phrase` - The mnemonic phrase to convert
+/// * `passphrase` - Optional BIP39 passphrase (default: empty string)
+///
+/// # Returns
+/// * `Result<Vec<u8>, DerivationError>` - The seed bytes (always 64 bytes) or an error
+///
+/// # Security
+/// **WARNING**: The returned seed is highly sensitive cryptographic material.
+/// Callers must ensure the returned `Vec<u8>` is properly zeroized when no longer needed.
+/// Consider using `zeroize::Zeroize` trait to securely clear the data from memory.
+///
+/// # Example
+/// ```
+/// use bitcoin_address_generator::mnemonic_to_seed;
+///
+/// let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+/// let seed = mnemonic_to_seed(mnemonic, None).unwrap();
+/// assert_eq!(seed.len(), 64);
+/// ```
+pub fn mnemonic_to_seed(
+    mnemonic_phrase: &str,
+    passphrase: Option<&str>,
+) -> Result<Vec<u8>, DerivationError> {
+    let mnemonic = Mnemonic::from_str(mnemonic_phrase)?;
+    let passphrase = passphrase.unwrap_or("");
+    Ok(mnemonic.to_seed(passphrase).to_vec())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -715,13 +910,50 @@ mod tests {
 
     #[test]
     fn test_generate_mnemonic() {
-        let mnemonic: String = generate_mnemonic(
+        // Test 12-word mnemonic
+        let mnemonic12: String = generate_mnemonic(
             Option::from(WordCount::Words12),
             Option::from(Language::English),
         )
         .unwrap();
-        println!("Generated mnemonic: {}", mnemonic);
-        assert_eq!(mnemonic.split_whitespace().count(), 12);
+        println!("Generated 12-word mnemonic: {}", mnemonic12);
+        assert_eq!(mnemonic12.split_whitespace().count(), 12);
+
+        // Test 15-word mnemonic
+        let mnemonic15: String = generate_mnemonic(
+            Option::from(WordCount::Words15),
+            Option::from(Language::English),
+        )
+        .unwrap();
+        println!("Generated 15-word mnemonic: {}", mnemonic15);
+        assert_eq!(mnemonic15.split_whitespace().count(), 15);
+
+        // Test 18-word mnemonic
+        let mnemonic18: String = generate_mnemonic(
+            Option::from(WordCount::Words18),
+            Option::from(Language::English),
+        )
+        .unwrap();
+        println!("Generated 18-word mnemonic: {}", mnemonic18);
+        assert_eq!(mnemonic18.split_whitespace().count(), 18);
+
+        // Test 21-word mnemonic
+        let mnemonic21: String = generate_mnemonic(
+            Option::from(WordCount::Words21),
+            Option::from(Language::English),
+        )
+        .unwrap();
+        println!("Generated 21-word mnemonic: {}", mnemonic21);
+        assert_eq!(mnemonic21.split_whitespace().count(), 21);
+
+        // Test 24-word mnemonic
+        let mnemonic24: String = generate_mnemonic(
+            Option::from(WordCount::Words24),
+            Option::from(Language::English),
+        )
+        .unwrap();
+        println!("Generated 24-word mnemonic: {}", mnemonic24);
+        assert_eq!(mnemonic24.split_whitespace().count(), 24);
     }
 
     #[test]
@@ -922,5 +1154,161 @@ mod tests {
         // Should use the is_change parameter (false) regardless of what was in the path
         assert_eq!(change_override_result.addresses[0].path, "m/84'/0'/0'/0/0");
         assert_eq!(change_override_result.addresses[1].path, "m/84'/0'/0'/0/1");
+    }
+
+    #[test]
+    fn test_validate_mnemonic() {
+        let valid_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        assert!(validate_mnemonic(valid_mnemonic).is_ok());
+
+        let invalid_mnemonic = "invalid word sequence that is not valid";
+        assert!(validate_mnemonic(invalid_mnemonic).is_err());
+    }
+
+    #[test]
+    fn test_derive_addresses_with_varying_mnemonic_lengths() {
+        // Test 12-word mnemonic (known valid test vector)
+        let mnemonic12 = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let result12 = derive_bitcoin_address(
+            mnemonic12,
+            Some("m/84'/0'/0'/0/0"),
+            Some(Network::Bitcoin),
+            None,
+        );
+        assert!(result12.is_ok());
+        assert_eq!(result12.unwrap().address, "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
+
+        // Generate and test 15-word mnemonic
+        let mnemonic15 = generate_mnemonic(Some(WordCount::Words15), None).unwrap();
+        assert_eq!(mnemonic15.split_whitespace().count(), 15);
+        let result15 = derive_bitcoin_address(
+            &mnemonic15,
+            Some("m/84'/0'/0'/0/0"),
+            Some(Network::Bitcoin),
+            None,
+        );
+        assert!(result15.is_ok());
+        assert!(result15.unwrap().address.starts_with("bc1"));
+
+        // Generate and test 18-word mnemonic
+        let mnemonic18 = generate_mnemonic(Some(WordCount::Words18), None).unwrap();
+        assert_eq!(mnemonic18.split_whitespace().count(), 18);
+        let result18 = derive_bitcoin_address(
+            &mnemonic18,
+            Some("m/84'/0'/0'/0/0"),
+            Some(Network::Bitcoin),
+            None,
+        );
+        assert!(result18.is_ok());
+        assert!(result18.unwrap().address.starts_with("bc1"));
+
+        // Generate and test 21-word mnemonic
+        let mnemonic21 = generate_mnemonic(Some(WordCount::Words21), None).unwrap();
+        assert_eq!(mnemonic21.split_whitespace().count(), 21);
+        let result21 = derive_bitcoin_address(
+            &mnemonic21,
+            Some("m/84'/0'/0'/0/0"),
+            Some(Network::Bitcoin),
+            None,
+        );
+        assert!(result21.is_ok());
+        assert!(result21.unwrap().address.starts_with("bc1"));
+
+        // Generate and test 24-word mnemonic
+        let mnemonic24 = generate_mnemonic(Some(WordCount::Words24), None).unwrap();
+        assert_eq!(mnemonic24.split_whitespace().count(), 24);
+        let result24 = derive_bitcoin_address(
+            &mnemonic24,
+            Some("m/84'/0'/0'/0/0"),
+            Some(Network::Bitcoin),
+            None,
+        );
+        assert!(result24.is_ok());
+        assert!(result24.unwrap().address.starts_with("bc1"));
+    }
+
+    #[test]
+    fn test_is_valid_bip39_word() {
+        assert!(is_valid_bip39_word("abandon", None));
+        assert!(is_valid_bip39_word("ABANDON", None)); // Case insensitive
+        assert!(!is_valid_bip39_word("notaword", None));
+    }
+
+    #[test]
+    fn test_get_bip39_suggestions() {
+        let suggestions = get_bip39_suggestions("ab", 5, None);
+        assert!(!suggestions.is_empty());
+        assert!(suggestions.contains(&"abandon".to_string()));
+        assert!(suggestions.contains(&"ability".to_string()));
+        assert!(suggestions.len() <= 5);
+
+        // Check that suggestions are sorted
+        let mut sorted = suggestions.clone();
+        sorted.sort();
+        assert_eq!(suggestions, sorted);
+    }
+
+    #[test]
+    fn test_get_bip39_wordlist() {
+        let wordlist = get_bip39_wordlist(None);
+        assert_eq!(wordlist.len(), 2048);
+        assert!(wordlist.contains(&"abandon".to_string()));
+        assert!(wordlist.contains(&"zoo".to_string()));
+    }
+
+    #[test]
+    fn test_mnemonic_entropy_conversion() {
+        // Test 12-word mnemonic (128 bits) - known valid test vector
+        let mnemonic12 = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let entropy12 = mnemonic_to_entropy(mnemonic12).unwrap();
+        assert_eq!(entropy12.len(), 16); // 128 bits for 12-word mnemonic
+        let recovered_mnemonic12 = entropy_to_mnemonic(&entropy12, None).unwrap();
+        assert_eq!(mnemonic12, recovered_mnemonic12);
+
+        // Generate and test 15-word mnemonic (160 bits)
+        let generated15 = generate_mnemonic(Some(WordCount::Words15), None).unwrap();
+        let entropy15 = mnemonic_to_entropy(&generated15).unwrap();
+        assert_eq!(entropy15.len(), 20); // 160 bits for 15-word mnemonic
+        let recovered_mnemonic15 = entropy_to_mnemonic(&entropy15, None).unwrap();
+        assert_eq!(generated15, recovered_mnemonic15);
+
+        // Generate and test 18-word mnemonic (192 bits)
+        let generated18 = generate_mnemonic(Some(WordCount::Words18), None).unwrap();
+        let entropy18 = mnemonic_to_entropy(&generated18).unwrap();
+        assert_eq!(entropy18.len(), 24); // 192 bits for 18-word mnemonic
+        let recovered_mnemonic18 = entropy_to_mnemonic(&entropy18, None).unwrap();
+        assert_eq!(generated18, recovered_mnemonic18);
+
+        // Generate and test 21-word mnemonic (224 bits)
+        let generated21 = generate_mnemonic(Some(WordCount::Words21), None).unwrap();
+        let entropy21 = mnemonic_to_entropy(&generated21).unwrap();
+        assert_eq!(entropy21.len(), 28); // 224 bits for 21-word mnemonic
+        let recovered_mnemonic21 = entropy_to_mnemonic(&entropy21, None).unwrap();
+        assert_eq!(generated21, recovered_mnemonic21);
+
+        // Generate and test 24-word mnemonic (256 bits)
+        let generated24 = generate_mnemonic(Some(WordCount::Words24), None).unwrap();
+        let entropy24 = mnemonic_to_entropy(&generated24).unwrap();
+        assert_eq!(entropy24.len(), 32); // 256 bits for 24-word mnemonic
+        let recovered_mnemonic24 = entropy_to_mnemonic(&entropy24, None).unwrap();
+        assert_eq!(generated24, recovered_mnemonic24);
+    }
+
+    #[test]
+    fn test_mnemonic_to_seed() {
+        let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+        // Without passphrase - verify against known test vector
+        let seed1 = mnemonic_to_seed(mnemonic, None).unwrap();
+        assert_eq!(seed1.len(), 64);
+        let expected_seed = hex::decode("5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4").unwrap();
+        assert_eq!(seed1, expected_seed);
+
+        // With passphrase
+        let seed2 = mnemonic_to_seed(mnemonic, Some("passphrase")).unwrap();
+        assert_eq!(seed2.len(), 64);
+
+        // Different passphrases should produce different seeds
+        assert_ne!(seed1, seed2);
     }
 }
