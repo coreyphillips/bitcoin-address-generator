@@ -6,6 +6,24 @@ A Rust library for Bitcoin key derivation and address generation.
 [![Documentation](https://docs.rs/bitcoin-address-generator/badge.svg)](https://docs.rs/bitcoin-address-generator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Quick Links
+
+### Core Functions
+- [`generate_mnemonic`](#generate-a-new-mnemonic-phrase) - Generate new BIP39 mnemonic phrases
+- [`derive_bitcoin_address`](#derive-different-address-types-from-a-mnemonic) - Derive a single Bitcoin address
+- [`derive_bitcoin_addresses`](#derive-multiple-addresses-at-once) - Derive multiple addresses in batch
+- [`calculate_script_hash`](#calculate-a-script-hash-for-an-address) - Calculate script hash for Electrum compatibility
+- [`derive_private_key`](#derive-a-private-key-in-wif-format) - Export private keys in WIF format
+
+### BIP39 Mnemonic Utilities
+- [`validate_mnemonic`](#validate-a-mnemonic-phrase) - Validate BIP39 mnemonic phrases
+- [`is_valid_bip39_word`](#check-if-a-word-is-valid) - Check if a word is in the BIP39 wordlist
+- [`get_bip39_suggestions`](#get-word-suggestions) - Get autocomplete suggestions for partial words
+- [`get_bip39_wordlist`](#get-the-complete-wordlist) - Access the full BIP39 wordlist
+- [`mnemonic_to_entropy`](#convert-mnemonic-to-entropy) - Convert mnemonic to entropy bytes
+- [`entropy_to_mnemonic`](#convert-entropy-to-mnemonic) - Convert entropy to mnemonic phrase
+- [`mnemonic_to_seed`](#convert-mnemonic-to-seed) - Generate seed from mnemonic with optional passphrase
+
 ## Features
 
 - 🔐 **Secure Memory Handling**: Sensitive data like private keys and seeds are automatically zeroized when no longer needed
@@ -214,7 +232,7 @@ use bitcoin::Network;
 fn main() {
     let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     let passphrase = "my secret passphrase";
-    
+
     // Derive address with a BIP39 passphrase
     let addr = derive_bitcoin_address(
         mnemonic,
@@ -224,6 +242,143 @@ fn main() {
     ).unwrap();
     println!("Address with passphrase: {}", addr.address);
     println!("Public key: {}", addr.public_key);
+}
+```
+
+### Validate a Mnemonic Phrase
+
+```rust
+use bitcoin_address_generator::validate_mnemonic;
+
+fn main() {
+    let valid_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    match validate_mnemonic(valid_mnemonic) {
+        Ok(()) => println!("Valid mnemonic!"),
+        Err(e) => println!("Invalid mnemonic: {:?}", e),
+    }
+
+    let invalid_mnemonic = "invalid word sequence";
+    match validate_mnemonic(invalid_mnemonic) {
+        Ok(()) => println!("Valid mnemonic!"),
+        Err(e) => println!("Invalid mnemonic: {:?}", e),
+    }
+}
+```
+
+### Check if a Word is Valid
+
+```rust
+use bitcoin_address_generator::is_valid_bip39_word;
+use bip39::Language;
+
+fn main() {
+    // Check English words (default)
+    println!("'abandon' is valid: {}", is_valid_bip39_word("abandon", None));
+    println!("'notaword' is valid: {}", is_valid_bip39_word("notaword", None));
+
+    // Check words in other languages
+    println!("'abarcar' is valid Spanish: {}",
+             is_valid_bip39_word("abarcar", Some(Language::Spanish)));
+}
+```
+
+### Get Word Suggestions
+
+```rust
+use bitcoin_address_generator::get_bip39_suggestions;
+use bip39::Language;
+
+fn main() {
+    // Get up to 5 suggestions for words starting with "ab"
+    let suggestions = get_bip39_suggestions("ab", 5, None);
+    println!("Suggestions for 'ab': {:?}", suggestions);
+    // Output: ["abandon", "ability", "able", "about", "above"]
+
+    // Get suggestions in Japanese
+    let japanese_suggestions = get_bip39_suggestions("あ", 3, Some(Language::Japanese));
+    println!("Japanese suggestions: {:?}", japanese_suggestions);
+}
+```
+
+### Get the Complete Wordlist
+
+```rust
+use bitcoin_address_generator::get_bip39_wordlist;
+use bip39::Language;
+
+fn main() {
+    // Get English wordlist (default)
+    let wordlist = get_bip39_wordlist(None);
+    println!("Total words: {}", wordlist.len()); // 2048
+    println!("First word: {}", wordlist[0]);
+    println!("Last word: {}", wordlist[wordlist.len() - 1]);
+
+    // Get wordlist for other languages
+    let french_wordlist = get_bip39_wordlist(Some(Language::French));
+    println!("French wordlist size: {}", french_wordlist.len());
+}
+```
+
+### Convert Mnemonic to Entropy
+
+```rust
+use bitcoin_address_generator::mnemonic_to_entropy;
+
+fn main() {
+    let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+    match mnemonic_to_entropy(mnemonic) {
+        Ok(entropy) => {
+            println!("Entropy length: {} bytes", entropy.len()); // 16 bytes for 12 words
+            println!("Entropy hex: {}", hex::encode(&entropy));
+            // Important: Securely clear entropy when done
+            // Consider using zeroize::Zeroize trait
+        }
+        Err(e) => println!("Error: {:?}", e),
+    }
+}
+```
+
+### Convert Entropy to Mnemonic
+
+```rust
+use bitcoin_address_generator::entropy_to_mnemonic;
+use bip39::Language;
+
+fn main() {
+    // Create 128-bit entropy (will generate 12-word mnemonic)
+    let entropy = vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+
+    // Convert to English mnemonic
+    let mnemonic = entropy_to_mnemonic(&entropy, None).unwrap();
+    println!("Mnemonic: {}", mnemonic);
+
+    // Convert to Japanese mnemonic
+    let japanese_mnemonic = entropy_to_mnemonic(&entropy, Some(Language::Japanese)).unwrap();
+    println!("Japanese: {}", japanese_mnemonic);
+}
+```
+
+### Convert Mnemonic to Seed
+
+```rust
+use bitcoin_address_generator::mnemonic_to_seed;
+
+fn main() {
+    let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+    // Without passphrase
+    let seed = mnemonic_to_seed(mnemonic, None).unwrap();
+    println!("Seed length: {} bytes", seed.len()); // Always 64 bytes
+    println!("Seed hex: {}", hex::encode(&seed));
+
+    // With passphrase
+    let seed_with_pass = mnemonic_to_seed(mnemonic, Some("my passphrase")).unwrap();
+    println!("Seed with passphrase: {}", hex::encode(&seed_with_pass));
+
+    // Important: Seeds are sensitive! Clear from memory when done
+    // Consider using zeroize::Zeroize trait
 }
 ```
 
@@ -279,6 +434,64 @@ Derives a private key in WIF format.
 - `network`: Optional. Bitcoin network. Defaults to Bitcoin mainnet.
 - `bip39_passphrase`: Optional. BIP39 passphrase. Defaults to empty string.
 - Returns: The private key in WIF format, or an error.
+
+### BIP39 Utility Functions
+
+#### `validate_mnemonic(mnemonic_phrase: &str) -> Result<(), DerivationError>`
+
+Validates a BIP39 mnemonic phrase.
+
+- `mnemonic_phrase`: The mnemonic phrase to validate.
+- Returns: Ok if valid, error otherwise.
+
+#### `is_valid_bip39_word(word: &str, language: Option<Language>) -> bool`
+
+Checks if a word is valid in the BIP39 wordlist.
+
+- `word`: The word to check.
+- `language`: Optional. Language to check against. Defaults to English.
+- Returns: true if the word is valid, false otherwise.
+
+#### `get_bip39_suggestions(partial_word: &str, limit: usize, language: Option<Language>) -> Vec<String>`
+
+Gets word suggestions for partial input (autocomplete).
+
+- `partial_word`: The partial word to get suggestions for.
+- `limit`: Maximum number of suggestions to return.
+- `language`: Optional. Language for suggestions. Defaults to English.
+- Returns: A sorted list of suggested words.
+
+#### `get_bip39_wordlist(language: Option<Language>) -> Vec<String>`
+
+Gets the full BIP39 wordlist for the specified language.
+
+- `language`: Optional. Language for the wordlist. Defaults to English.
+- Returns: The complete wordlist (2048 words).
+
+#### `mnemonic_to_entropy(mnemonic_phrase: &str) -> Result<Vec<u8>, DerivationError>`
+
+Converts a mnemonic phrase to entropy bytes.
+
+- `mnemonic_phrase`: The mnemonic phrase to convert.
+- Returns: The entropy bytes or an error.
+- **Security**: The returned entropy is sensitive cryptographic material and should be securely cleared from memory when no longer needed.
+
+#### `entropy_to_mnemonic(entropy: &[u8], language: Option<Language>) -> Result<String, DerivationError>`
+
+Converts entropy bytes to a mnemonic phrase.
+
+- `entropy`: The entropy bytes to convert.
+- `language`: Optional. Language for the mnemonic. Defaults to English.
+- Returns: The mnemonic phrase or an error.
+
+#### `mnemonic_to_seed(mnemonic_phrase: &str, passphrase: Option<&str>) -> Result<Vec<u8>, DerivationError>`
+
+Converts a mnemonic phrase to a seed with optional passphrase.
+
+- `mnemonic_phrase`: The mnemonic phrase to convert.
+- `passphrase`: Optional. BIP39 passphrase. Defaults to empty string.
+- Returns: The seed bytes (always 64 bytes) or an error.
+- **Security**: The returned seed is highly sensitive cryptographic material and should be securely cleared from memory when no longer needed.
 
 ### Data Structures
 
